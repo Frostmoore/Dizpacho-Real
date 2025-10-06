@@ -1,3 +1,18 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-medium transition;
+  }
+  .btn-primary {
+    @apply bg-whatsapp text-white hover:bg-whatsapp-700;
+  }
+  .btn-outline {
+    @apply ring-1 ring-whatsapp text-whatsapp hover:bg-whatsapp/10;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+}
