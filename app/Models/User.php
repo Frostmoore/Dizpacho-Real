@@ -22,10 +22,20 @@ class User extends Authenticatable
     protected $keyType = 'string';
 
     protected $fillable = [
-        'name', 'email', 'username', 'password', 'phone', 'role',
+        'name', 
+        'email', 
+        'username', 
+        'password', 
+        'phone', 
+        'role',
+        'piva',
+        'fornitori',
     ];
 
-    protected $hidden = ['password', 'remember_token'];
+    protected $hidden = [
+        'password', 
+        'remember_token'
+    ];
 
     protected $casts = [
         'email_verified_at' => 'datetime',

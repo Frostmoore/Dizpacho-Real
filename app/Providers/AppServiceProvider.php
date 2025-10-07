@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 
+use App\Services\Chat\ChatServiceInterface;
+use App\Services\Chat\MockChatService;
+
 class AppServiceProvider extends ServiceProvider
 {
     /**
@@ -11,7 +14,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(
+            ChatServiceInterface::class, 
+            MockChatService::class
+        );
     }
 
     /**
