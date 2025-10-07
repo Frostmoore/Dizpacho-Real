@@ -23,12 +23,8 @@ class ChatController extends Controller
     public function send(Request $request)
     {
         $text = trim((string)$request->input('message', ''));
-        // normalizza il numero a sole cifre (evita +39, spazi, ecc.)
         $customer = preg_replace('/\D+/', '', (string)($request->input('customer') ?? $request->session()->get('chat.customer', '')));
 
-        if ($text === '') {
-            return response()->json(['error' => 'Message is empty'], 422);
-        }
         if ($customer === '') {
             return response()->json(['error' => 'Customer (phone) is required'], 422);
         }
@@ -38,11 +34,55 @@ class ChatController extends Controller
 
         $userId = (string)auth()->id();
 
-        try {
-            // salva il messaggio utente nello storico
-            $this->chat->storeUserMessage($userId, $text, $customer);
+        // ---- Validazione media opzionale
+        $hasFile = $request->hasFile('file');
+        $extra   = [];
 
-            // reply mock
+        if ($hasFile) {
+            // immagini o audio
+            $request->validate([
+                'file' => 'required|file|max:20480' // 20MB (adatta)
+            ]);
+
+            $file = $request->file('file');
+
+            // detect tipo
+            $mime = $file->getMimeType() ?: '';
+            $isImage = str_starts_with($mime, 'image/');
+            $isAudio = str_starts_with($mime, 'audio/') || in_array($file->extension(), ['mp3','m4a','aac','wav','ogg','webm']);
+
+            if (!$isImage && !$isAudio) {
+                return response()->json(['error' => 'Tipo file non supportato'], 422);
+            }
+
+            // salva in: public/chat/{phone}/
+            $dir = "chat/{$customer}";
+            $path = $file->store($dir, 'public'); // richiede: php artisan storage:link
+            $url  = asset("storage/{$path}");
+
+            $extra = [
+                'type' => $isImage ? 'image' : 'audio',
+                'url'  => $url,
+                'mime' => $mime,
+                'name' => $file->getClientOriginalName(),
+                'size' => $file->getSize(),
+            ];
+
+            // se non c'è testo, metti un placeholder "media"
+            if ($text === '') {
+                $text = $isImage ? '[immagine]' : '[audio]';
+            }
+        }
+
+        if ($text === '') {
+            return response()->json(['error' => 'Message is empty'], 422);
+        }
+
+        try {
+            // salva messaggio utente (con meta media se presenti)
+            $this->chat->storeUserMessage($userId, $text, $customer, $extra);
+
+            // reply mock (su media può comunque rispondere con testo generico)
             $assistantText = $this->chat->reply($userId, $text, $customer);
 
             return response()->json([
@@ -51,7 +91,15 @@ class ChatController extends Controller
                     'content'  => $assistantText,
                     'ts'       => now()->toIso8601String(),
                     'customer' => $customer,
+                    // niente media per la reply mock (per ora)
                 ],
+                // echo back del messaggio utente con meta (per render immediato)
+                'echo' => array_merge([
+                    'role'     => 'user',
+                    'content'  => $text,
+                    'ts'       => now()->toIso8601String(),
+                    'customer' => $customer,
+                ], $extra),
             ], 200);
 
         } catch (\Throwable $e) {
@@ -60,10 +108,10 @@ class ChatController extends Controller
                 'customer' => $customer,
                 'error'    => $e->getMessage(),
             ]);
-            // evita che il client veda “Errore di rete” generico senza dettagli utili
             return response()->json(['error' => 'Server error'], 500);
         }
     }
+
 
 
 }

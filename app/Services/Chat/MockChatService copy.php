@@ -15,18 +15,18 @@ class MockChatService implements ChatServiceInterface
         return Replies::history($userId);
     }
 
-    public function storeUserMessage(string $userId, string $content, ?string $customer = null, array $extra = []): void
+    public function storeUserMessage(string $userId, string $content, ?string $customer = null): void
     {
         $phone = Phone::normalize($customer);
         $all   = Replies::history($userId);
 
-        $msg = array_merge([
+        $msg = [
             'role'     => 'user',
             'content'  => $content,
             'ts'       => now()->toIso8601String(),
             'customer' => $phone,
             'user_id'  => $userId,
-        ], $extra);
+        ];
 
         $all[] = $msg;
         Replies::putHistory($userId, $all);

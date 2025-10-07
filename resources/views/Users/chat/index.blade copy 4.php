@@ -14,10 +14,6 @@
         .typing-dots .dot:nth-child(2){ animation-delay:.2s }
         .typing-dots .dot:nth-child(3){ animation-delay:.4s }
         @keyframes blink { 0%,80%,100%{opacity:.2} 40%{opacity:1} }
-
-        /* Modal semplice per webcam */
-        .modal-hide { display: none; }
-        .modal-show { display: flex; }
     </style>
 
     <div class="py-6">
@@ -120,13 +116,12 @@
                     </div>
 
                     {{-- bottoni media --}}
-                    <label id="btn-camera" class="inline-flex items-center justify-center rounded-md px-3 py-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer transition select-none">
+                    <label id="btn-camera" class="inline-flex items-center justify-center rounded-md px-3 py-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer transition">
                         📷
-                        {{-- Fallback mobile: apre camera nativa, ora con multiple --}}
                         <input id="file-camera" type="file" accept="image/*" capture="environment" multiple class="hidden">
                     </label>
 
-                    <label id="btn-image" class="inline-flex items-center justify-center rounded-md px-3 py-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer transition select-none">
+                    <label id="btn-image" class="inline-flex items-center justify-center rounded-md px-3 py-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer transition">
                         🖼️
                         <input id="file-image" type="file" accept="image/*" class="hidden">
                     </label>
@@ -158,28 +153,6 @@
         </div>
     </div>
 
-    {{-- Modal Webcam --}}
-    <div id="cam-modal" class="modal-hide fixed inset-0 z-50 items-center justify-center">
-        <div class="absolute inset-0 bg-black/60"></div>
-        <div class="relative bg-white rounded-xl shadow-xl w-[95vw] max-w-lg p-4 mx-auto">
-            <h3 class="text-lg font-semibold mb-3">Fotocamera</h3>
-            <div class="aspect-video bg-black/80 rounded-lg overflow-hidden flex items-center justify-center">
-                <video id="cam-video" autoplay playsinline class="w-full h-full object-cover"></video>
-                <canvas id="cam-canvas" class="hidden"></canvas>
-            </div>
-            <div class="mt-3 flex items-center justify-between">
-                <div class="text-sm text-gray-600">
-                    Scatti: <span id="cam-count">0</span>
-                </div>
-                <div class="flex gap-2">
-                    <button id="cam-cancel" class="px-3 py-2 rounded-md border border-gray-300 bg-white hover:bg-gray-50">Annulla</button>
-                    <button id="cam-capture" class="px-3 py-2 rounded-md bg-whatsapp-600 text-white hover:bg-whatsapp-700">Scatta</button>
-                    <button id="cam-done" class="px-3 py-2 rounded-md border border-gray-300 bg-white hover:bg-gray-50">Fine</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     {{-- JS --}}
     <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -192,18 +165,9 @@
 
         const btnCam   = document.getElementById('btn-camera');
         const btnImg   = document.getElementById('btn-image');
-        const fileCam  = document.getElementById('file-camera'); // fallback mobile
+        const fileCam  = document.getElementById('file-camera');
         const fileImg  = document.getElementById('file-image');
         const recBtn   = document.getElementById('rec-toggle');
-
-        // Webcam modal elems
-        const camModal   = document.getElementById('cam-modal');
-        const camVideo   = document.getElementById('cam-video');
-        const camCanvas  = document.getElementById('cam-canvas');
-        const camCapture = document.getElementById('cam-capture');
-        const camDone    = document.getElementById('cam-done');
-        const camCancel  = document.getElementById('cam-cancel');
-        const camCountEl = document.getElementById('cam-count');
 
         // Pending media bucket
         let pendingFiles = [];
@@ -293,7 +257,7 @@
             return wrap;
         }
 
-        // ---- Button highlight helper ----
+        // ---- MEDIA PICKERS & STATES (button highlight) ----
         const setBtnGreen = (el, on) => {
             el.classList.toggle('bg-whatsapp-600', on);
             el.classList.toggle('text-white', on);
@@ -302,98 +266,33 @@
             el.classList.toggle('text-gray-700', !on);
             el.classList.toggle('border-gray-300', !on);
         };
+
         const updateButtonsState = () => {
-            // green if there's any pending image file
-            const anyImage = pendingFiles.some(f => f.type?.startsWith('image/'));
-            setBtnGreen(btnCam, anyImage || (fileCam.files && fileCam.files.length > 0));
+            // camera button green if camera input has files
+            setBtnGreen(btnCam, (fileCam.files && fileCam.files.length > 0));
+            // gallery button green if gallery input has a file
             setBtnGreen(btnImg, (fileImg.files && fileImg.files.length > 0));
-            // recBtn handled during recording
+            // recorder handled separately when active
         };
 
         const addToPending = (files) => {
             for (const f of files) {
                 if (f && f.size > 0) pendingFiles.push(f);
             }
-            updateButtonsState();
         };
 
-        // ---- Webcam handling (preferita) + fallback input camera ----
-        const hasWebcam = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-        let camStream = null;
-        let camShots = 0;
-
-        const openCamModal = async () => {
-            try {
-                camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-                camVideo.srcObject = camStream;
-                camShots = 0;
-                camCountEl.textContent = '0';
-                camModal.classList.remove('modal-hide');
-                camModal.classList.add('modal-show');
-            } catch (e) {
-                // Fallback a input "camera"
-                fileCam.click();
-            }
-        };
-        const closeCamModal = () => {
-            if (camStream) {
-                camStream.getTracks().forEach(t => t.stop());
-                camStream = null;
-            }
-            camModal.classList.remove('modal-show');
-            camModal.classList.add('modal-hide');
-        };
-
-        btnCam.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (hasWebcam) openCamModal();
-            else fileCam.click();
-        });
-
-        camCancel.addEventListener('click', (e) => {
-            e.preventDefault();
-            closeCamModal();
-        });
-
-        camDone.addEventListener('click', (e) => {
-            e.preventDefault();
-            closeCamModal();
-            updateButtonsState();
-        });
-
-        camCapture.addEventListener('click', async (e) => {
-            e.preventDefault();
-            if (!camStream) return;
-
-            // scatta
-            const trackSettings = camStream.getVideoTracks()[0].getSettings();
-            const w = trackSettings.width || 1280;
-            const h = trackSettings.height || 720;
-
-            camCanvas.width  = w;
-            camCanvas.height = h;
-
-            const ctx = camCanvas.getContext('2d');
-            ctx.drawImage(camVideo, 0, 0, w, h);
-
-            // to Blob → File → pending
-            camCanvas.toBlob((blob) => {
-                if (!blob) return;
-                const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
-                addToPending([file]);
-                camShots += 1;
-                camCountEl.textContent = String(camShots);
-            }, 'image/jpeg', 0.92);
-        });
-
-        // Fallback mobile camera input (multiple)
         fileCam.addEventListener('change', () => {
-            if (fileCam.files?.length) addToPending(fileCam.files);
+            if (fileCam.files?.length) {
+                addToPending(fileCam.files);
+            }
+            updateButtonsState();
         });
 
-        // Galleria
         fileImg.addEventListener('change', () => {
-            if (fileImg.files?.length) addToPending(fileImg.files);
+            if (fileImg.files?.length) {
+                addToPending(fileImg.files);
+            }
+            updateButtonsState();
         });
 
         // ---- Recording (MediaRecorder) with green highlight ----
@@ -412,20 +311,22 @@
                         const blob = new Blob(recChunks, { type: 'audio/webm' });
                         const file = new File([blob], `rec_${Date.now()}.webm`, { type: 'audio/webm' });
                         addToPending([file]);
+                        // turn off green (recording finished, but we keep files pending)
                         setBtnGreen(recBtn, false);
-                        stream.getTracks().forEach(t => t.stop());
                     };
                     mediaRecorder.start();
                     recActive = true;
                     recBtn.textContent = '⏹️';
-                    setBtnGreen(recBtn, true);
+                    setBtnGreen(recBtn, true); // green while recording
                 } catch {
                     alert('Microfono non disponibile');
                 }
             } else {
                 mediaRecorder?.stop();
+                mediaRecorder?.stream.getTracks().forEach(t => t.stop());
                 recActive = false;
                 recBtn.textContent = '🎙️';
+                // keep green reset when onstop runs
             }
         };
         recBtn.addEventListener('click', toggleRecording);
@@ -434,15 +335,20 @@
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            if (recActive) await toggleRecording();
+            if (recActive) {
+                await toggleRecording(); // stop recording to create file
+            }
 
             const text = (input.value || '').replace(/^\s+/, '');
             const customer = (phoneInput?.value || '').trim();
 
-            if (!customer) { phoneInput?.focus(); return; }
+            if (!customer) {
+                phoneInput?.focus();
+                return;
+            }
             if (!text && pendingFiles.length === 0) return;
 
-            // Preview media bubbles
+            // Preview bubbles for each media (if any)
             if (pendingFiles.length > 0) {
                 const captionText = text;
                 const lastIndex = pendingFiles.length - 1;
@@ -452,7 +358,7 @@
                     const isAud = f.type?.startsWith('audio/') || /\.webm$/i.test(f.name);
                     const url   = URL.createObjectURL(f);
 
-                    const txt = (idx === lastIndex) ? captionText : '';
+                    const txt = (idx === lastIndex) ? captionText : ''; // caption on last only
                     scroller.appendChild(makeBubble({
                         role: 'user',
                         text: (txt || (isImg ? '[immagine]' : isAud ? '[audio]' : '')),
@@ -462,9 +368,11 @@
                     }));
                 });
             } else {
+                // Only text
                 scroller.appendChild(makeBubble({ role:'user', text, ts:null }));
             }
 
+            // Typing dots
             const typing = makeBubble({ role:'assistant', text:'', pending:true });
             scroller.appendChild(typing);
             scrollToBottom();
@@ -477,8 +385,10 @@
                 fd.set('message', text || (pendingFiles.length ? '[media]' : ''));
                 fd.set('customer', customer);
 
+                // Attach files (multi)
                 if (pendingFiles.length > 0) {
                     pendingFiles.forEach(f => fd.append('files[]', f, f.name));
+                    // Back-compat: first file also as 'file'
                     fd.set('file', pendingFiles[0], pendingFiles[0].name);
                 }
 
@@ -494,7 +404,10 @@
 
                 if (!res.ok) {
                     let message = `HTTP_${res.status}`;
-                    try { const err = await res.json(); if (err?.error) message = err.error; } catch {}
+                    try {
+                        const err = await res.json();
+                        if (err?.error) message = err.error;
+                    } catch {}
                     throw new Error(message);
                 }
 
@@ -510,10 +423,11 @@
                 const c = typing.querySelector('.typing-dots');
                 if (c) c.parentElement.textContent = 'Errore di rete. Riprova.';
             } finally {
+                // Reset UI
                 input.disabled = false; sendBtn.disabled = false;
                 input.value = '';
                 input.dispatchEvent(new Event('input'));
-                // clear pending + inputs
+                // clear pending files and inputs
                 pendingFiles = [];
                 fileCam.value = '';
                 fileImg.value = '';
