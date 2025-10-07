@@ -1,0 +1,1 @@
+import './MockChatScripts/bootstrap';
